@@ -106,6 +106,55 @@ class FaceAlignment:
         """
         return self.get_landmarks_from_image(image_or_path, detected_faces)
 
+
+    @torch.no_grad()
+    def get_facebox_form_imagelist(self, image_or_path_list):
+        def extract_img(image_or_path):
+            if isinstance(image_or_path, str):
+                try:
+                    image = io.imread(image_or_path)
+                except IOError:
+                    print("error opening file :: ", image_or_path)
+                    return None
+            elif isinstance(image_or_path, torch.Tensor):
+                image = image_or_path.detach().cpu().numpy()
+            else:
+                image = image_or_path
+
+            if image.ndim == 2:
+                image = color.gray2rgb(image)
+            elif image.ndim == 4:
+                image = image[..., :3]
+            return image[..., ::-1].copy()
+
+        image_list = [extract_img(e) for e in image_or_path_list]
+        detected_faces = self.face_detector.detect_from_image_list(image_list)
+        return detected_faces
+
+    @torch.no_grad()
+    def get_facebox_form_image(self, image_or_path):
+        def extract_img(image_or_path):
+            if isinstance(image_or_path, str):
+                try:
+                    image = io.imread(image_or_path)
+                except IOError:
+                    print("error opening file :: ", image_or_path)
+                    return None
+            elif isinstance(image_or_path, torch.Tensor):
+                image = image_or_path.detach().cpu().numpy()
+            else:
+                image = image_or_path
+
+            if image.ndim == 2:
+                image = color.gray2rgb(image)
+            elif image.ndim == 4:
+                image = image[..., :3]
+            return image[..., ::-1].copy()
+
+        image = extract_img(image_or_path)
+        detected_faces = self.face_detector.detect_from_image(image)
+        return detected_faces
+
     @torch.no_grad()
     def get_landmarks_from_image(self, image_or_path, detected_faces=None):
         """Predict the landmarks for each face present in the image.
@@ -137,7 +186,7 @@ class FaceAlignment:
             image = image[..., :3]
 
         if detected_faces is None:
-            detected_faces = self.face_detector.detect_from_image(image[..., ::-1].copy())
+            detected_faces = self.face_detector.detect_from_image(image[..., ::-1].copy())  # TODO  RGB -> BGR
 
         if len(detected_faces) == 0:
             print("Warning: No faces were detected.")
@@ -157,7 +206,7 @@ class FaceAlignment:
             inp = inp.to(self.device)
             inp.div_(255.0).unsqueeze_(0)
 
-            out = self.face_alignment_net(inp)[-1].detach()
+            out = self.face_alignment_net(inp)[-1].detach() # TODO
             if self.flip_input:
                 out += flip(self.face_alignment_net(flip(inp))
                             [-1].detach(), is_label=True)
